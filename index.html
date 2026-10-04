@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>金鑫体重跟踪看板</title>
+<style>
+:root{
+  --bg:#f4f5f7; --card:#ffffff; --line:#e6e8ec; --fg:#15171c; --fg2:#6b7280;
+  --accent:#2563eb; --good:#15803d; --warn:#c2410c; --bad:#dc2626; --grid:#eef0f3;
+  --chipbg:#f2f4f7;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0e1116; --card:#161a21; --line:#252b34; --fg:#e8eaed; --fg2:#98a1ac;
+    --accent:#60a5fa; --good:#4ade80; --warn:#fb923c; --bad:#f87171; --grid:#1e242c;
+    --chipbg:#1c222a;
+  }
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1060px; margin:0 auto; padding:30px 20px 70px}
+h1{font-size:22px; margin:0 0 4px; letter-spacing:.3px}
+.sub{color:var(--fg2); font-size:13px}
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px}
+.sec-title{font-size:13px; font-weight:600; color:var(--fg2); letter-spacing:1px;
+  margin:34px 0 12px; text-transform:uppercase}
+
+/* ── 顶部 ── */
+.hero{display:grid; grid-template-columns:1.1fr 1fr; gap:16px; margin-top:22px}
+@media (max-width:760px){ .hero{grid-template-columns:1fr} }
+.big{font-size:54px; font-weight:700; line-height:1.05; letter-spacing:-1px}
+.big small{font-size:17px; font-weight:500; color:var(--fg2); margin-left:6px; letter-spacing:0}
+.delta{display:inline-flex; align-items:center; gap:5px; font-size:15px; font-weight:600;
+  padding:3px 10px; border-radius:999px; background:var(--chipbg)}
+.down{color:var(--good)} .up{color:var(--bad)} .flat{color:var(--fg2)}
+.hero-meta{color:var(--fg2); font-size:13px; margin-top:10px}
+.prog-wrap{margin-top:6px}
+.prog-labels{display:flex; justify-content:space-between; font-size:12px; color:var(--fg2); margin-bottom:7px}
+.prog-bar{height:10px; border-radius:999px; background:var(--chipbg); overflow:hidden; position:relative}
+.prog-fill{height:100%; border-radius:999px; background:linear-gradient(90deg,#2563eb,#22c55e);
+  transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.prog-note{font-size:13px; color:var(--fg2); margin-top:9px}
+.target-line{position:absolute; top:-3px; width:2px; height:16px; background:var(--fg2); opacity:.55}
+
+/* ── 评价与建议 ── */
+.a-line{display:flex; gap:9px; margin:7px 0; font-size:14px; line-height:1.55}
+.a-dot{width:8px; height:8px; border-radius:50%; margin-top:7px; flex:none}
+.a-tips{margin:12px 0 0; padding:10px 0 0 20px; border-top:1px dashed var(--line);
+  font-size:13.5px; color:var(--fg2)}
+.a-tips li{margin:4px 0}
+.a-note{font-size:12px; color:var(--fg2); margin-top:10px; opacity:.8}
+
+/* ── 导入按钮（App 内生效；浏览器直开降级为提示）── */
+.topbar{display:flex; justify-content:space-between; align-items:flex-start; gap:12px}
+.topbtns{display:flex; gap:8px; flex:none; margin-top:2px}
+.motto{text-align:right; font-size:12px; letter-spacing:1.3px; color:var(--fg2); padding:3px 0 11px}
+#import-btn:disabled,#share-btn:disabled,#sync-btn:disabled{opacity:.55; cursor:wait}
+.imp-status{margin-top:10px; font-size:13px; padding:11px 14px; border-radius:10px;
+  background:var(--chipbg); border:1px solid var(--line)}
+.imp-head{display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; line-height:1.4}
+.imp-head .ic{flex:none}
+.imp-head .t{margin-left:auto; font-weight:400; color:var(--fg2); font-size:12.5px; flex:none}
+.imp-head.ok{color:var(--good)} .imp-head.bad{color:var(--bad)}
+.imp-body{margin-top:5px; color:var(--fg2); font-size:12.5px; line-height:1.6}
+.imp-more{margin-top:9px; padding-top:9px; border-top:1px dashed var(--line); display:none}
+.imp-more.open{display:block}
+.imp-log{display:flex; gap:9px; font-size:12.5px; color:var(--fg2); padding:2px 0; align-items:baseline}
+.imp-log .ts{flex:none; opacity:.75}
+.imp-log .sum{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.imp-toggle{margin-top:9px; font-size:12.5px; color:var(--accent); cursor:pointer; user-select:none}
+
+/* ── 指标卡 ── */
+.cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(158px,1fr)); gap:12px; margin-top:16px}
+.k{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:13px 14px}
+.k .name{font-size:12.5px; color:var(--fg2)}
+.k .val{font-size:22px; font-weight:650; margin-top:3px; letter-spacing:-.3px}
+.k .val span{font-size:12px; font-weight:500; color:var(--fg2); margin-left:3px; letter-spacing:0}
+.k .tag{display:inline-block; font-size:11.5px; font-weight:600; padding:1px 8px; border-radius:999px;
+  margin-top:7px; background:var(--chipbg)}
+.t-good{color:var(--good)} .t-warn{color:var(--warn)} .t-bad{color:var(--bad)} .t-neutral{color:var(--fg2)}
+.k .chg{font-size:12px; margin-left:6px; font-weight:600}
+
+/* ── 图表 ── */
+.charts{display:grid; grid-template-columns:1fr; gap:14px}
+.chart-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px 8px}
+.chart-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:2px}
+.chart-title{font-size:14.5px; font-weight:600}
+.chart-sub{font-size:12px; color:var(--fg2)}
+svg{display:block; width:100%; height:auto; overflow:visible}
+.axis{font-size:11px; fill:var(--fg2)}
+.gridline{stroke:var(--grid); stroke-width:1}
+.empty{color:var(--fg2); font-size:13px; padding:26px 0 30px; text-align:center}
+
+/* ── 早晚 / 日均 切换 ── */
+.seg{margin-left:12px; display:inline-flex; border:1px solid var(--line); border-radius:9px;
+  overflow:hidden; vertical-align:middle; background:var(--card); letter-spacing:0; text-transform:none}
+.seg button{background:transparent; color:var(--fg2); border:0; border-radius:0; padding:4px 12px;
+  font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit; letter-spacing:0}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent); color:#fff}
+.seg-note{font-size:12.5px; color:var(--fg2); margin:-4px 0 10px}
+
+/* ── 明细表 ── */
+table{width:100%; border-collapse:collapse; font-size:13px}
+th,td{padding:9px 8px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap}
+th{color:var(--fg2); font-weight:600; font-size:12px; position:sticky; top:0; background:var(--card)}
+th:first-child,td:first-child{text-align:left}
+tbody tr:hover{background:var(--chipbg)}
+.scroll{overflow-x:auto; border:1px solid var(--line); border-radius:14px; background:var(--card); padding:0 14px}
+
+/* ── 设置 ── */
+.setrow{display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end}
+.field{display:flex; flex-direction:column; gap:5px}
+.field label{font-size:12px; color:var(--fg2)}
+input,select{background:var(--chipbg); border:1px solid var(--line); color:var(--fg);
+  border-radius:8px; padding:7px 10px; font-size:14px; font-family:inherit; min-width:110px}
+button{background:var(--accent); color:#fff; border:0; border-radius:8px; padding:8px 16px;
+  font-size:14px; font-family:inherit; cursor:pointer; font-weight:600}
+button.ghost{background:var(--chipbg); color:var(--fg2)}
+.foot{margin-top:30px; color:var(--fg2); font-size:12.5px; line-height:1.9}
+code{background:var(--chipbg); padding:1px 6px; border-radius:5px; font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <h1>金鑫体重跟踪看板</h1>
+      <div class="sub" id="head-sub">—</div>
+    </div>
+    </div>
+  <div class="motto">正天地所不正，判黑白所不判，犯人鬼所不犯，破日月所不破。儒法、无情，法儒、无私。</div>
+  <div class="hero">
+    <div class="card">
+      <div class="name" style="color:var(--fg2);font-size:12.5px">最新体重</div>
+      <div class="big" id="hero-w">—</div>
+      <div id="hero-delta"></div>
+      <div class="hero-meta" id="hero-meta"></div>
+    </div>
+    <div class="card">
+      <div class="name" style="color:var(--fg2);font-size:12.5px">目标进度</div>
+      <div style="font-size:22px;font-weight:650;margin:3px 0 12px" id="prog-title">—</div>
+      <div class="prog-wrap">
+        <div class="prog-labels"><span id="prog-a">—</span><span id="prog-b">—</span></div>
+        <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+      </div>
+      <div class="prog-note" id="prog-note"></div>
+    </div>
+  </div>
+
+  <div class="sec-title">进度评价与建议<span style="letter-spacing:0;text-transform:none;font-weight:400"> · 按早晨读数</span></div>
+  <div class="card" id="assess"></div>
+
+  <div class="sec-title">关键指标 · 最新一次</div>
+  <div class="cards" id="cards"></div>
+
+  <div class="sec-title">趋势
+    <span class="seg" id="seg">
+      <button data-mode="all" class="on">全部</button>
+      <button data-mode="morning">只看早晨</button>
+      <button data-mode="evening">只看晚间</button>
+      <button data-mode="daily">当日平均</button>
+    </span>
+  </div>
+  <div class="seg-note" id="seg-note"></div>
+  <div class="charts" id="charts"></div>
+
+  <div class="sec-title">历次明细
+    <span class="seg" id="rng">
+      <button data-days="7">近 7 天</button>
+      <button data-days="14">近 14 天</button>
+      <button data-days="30">近 30 天</button>
+      <button data-days="0" class="on">全部</button>
+    </span>
+  </div>
+  <div class="seg-note" id="rng-note"></div>
+  <div class="scroll"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+
+  <div class="sec-title">参数</div>
+  <div class="card">
+    <div class="setrow">
+      <div class="field"><label>性别</label>
+        <select id="sex"><option value="男">男</option><option value="女">女</option></select></div>
+      <div class="field"><label>身高（cm）</label><input id="height" type="number" step="0.5" /></div>
+      <div class="field"><label>目标体重（kg）</label><input id="target" type="number" step="0.1" /></div>
+      <div class="field"><label>&nbsp;</label><button id="save">保存参数</button></div>
+      <div class="field"><label>&nbsp;</label><button class="ghost" id="reset">恢复默认</button></div>
+    </div>
+    <div class="prog-note" id="set-note" style="margin-top:12px">
+      参数只保存在本地浏览器里，改完立即重算；不改动原始数据。
+    </div>
+  </div>
+
+  <div class="foot">
+    数据源：<code>体重台账.csv</code>（华为运动健康 · 体脂秤）
+    
+  </div>
+</div>
+
+<script>
+window.__DATA__ = /*__DATA__*/ {"rows": [{"date": "2026-09-05", "time": "08:00", "weight": 90.0, "dWeight": null, "score": null, "bmi": null, "dBmi": null, "fat": null, "dFat": null, "muscle": null, "dMuscle": null, "visceral": null, "asmi": null, "whr": null, "bodyType": null, "shape": null, "bmr": null, "water": null, "dWater": null, "bone": null, "protein": null, "dProtein": null, "leanMass": null, "dLean": null, "bodyAge": null, "hr": null}, {"date": "2026-09-06", "time": "08:00", "weight": 89.67, "dWeight": null, "score": null, "bmi": null, "dBmi": null, "fat": null, "dFat": null, "muscle": null, "dMuscle": null, "visceral": null, "asmi": null, "whr": null, "bodyType": null, "shape": null, "bmr": null, "water": null, "dWater": null, "bone": null, "protein": null, "dProtein": null, "leanMass": null, "dLean": null, "bodyAge": null, "hr": null}, {"date": "2026-09-07", "time": "08:00", "weight": 89.34, "dWeight": null, "score": null, "bmi": null, "dBmi": null, "fat": null, "dFat": null, "muscle": null, "dMuscle": null, "visceral": null, "asmi": null, "whr": null, "bodyType": null, "shape": null, "bmr": null, "water": null, "dWater": null, "bone": null, "protein": null, "dProtein": null, "leanMass": null, "dLean": null, "bodyAge": null, "hr": null}, {"date": "2026-09-08", "time": "08:00", "weight": 89.01, "dWeight": null, "score": null, "bmi": null, "dBmi": null, "fat": null, "dFat": null, "muscle": null, "dMuscle": null, "visceral": null, "asmi": null, "whr": null, "bodyType": null, "shape": null, "bmr": null, "water": null, "dWater": null, "bone": null, "protein": null, "dProtein": null, "leanMass": null, "dLean": null, "bodyAge": null, "hr": null}, {"date": "2026-09-09", "time": "08:00", "weight": 88.68, "dWeight": null, "score": null, "bmi": null, "dBmi": null, "fat": null, "dFat": null, "muscle": null, "dMuscle": null, "visceral": null, "asmi": null, "whr": null, "bodyType": null, "shape": null, "bmr": null, "water": null, "dWater": null, "bone": null, "protein": null, "dProtein": null, "leanMass": null, "dLean": null, "bodyAge": null, "hr": null}, {"date": "2026-09-10", "time": "08:00", "weight": 88.35, "dWeight": null, "score": null, "bmi": null, "dBmi": null, "fat": null, "dFat": null, "muscle": null, "dMuscle": null, "visceral": null, "asmi": null, "whr": null, "bodyType": null, "shape": null, "bmr": null, "water": null, "dWater": null, "bone": null, "protein": null, "dProtein": null, "leanMass": null, "dLean": null, "bodyAge": null, "hr": null}, {"date": "2026-09-11", "time": "08:00", "weight": 88.02, "dWeight": null, "score": null, "bmi": null, "dBmi": null, "fat": null, "dFat": null, "muscle": null, "dMuscle": null, "visceral": null, "asmi": null, "whr": null, "bodyType": null, "shape": null, "bmr": null, "water": null, "dWater": null, "bone": null, "protein": null, "dProtein": null, "leanMass": null, "dLean": null, "bodyAge": null, "hr": null}, {"date": "2026-09-12", "time": "08:00", "weight": 87.69, "dWeight": null, "score": null, "bmi": null, "dBmi": null, "fat": null, "dFat": null, "muscle": null, "dMuscle": null, "visceral": null, "asmi": null, "whr": null, "bodyType": null, "shape": null, "bmr": null, "water": null, "dWater": null, "bone": null, "protein": null, "dProtein": null, "leanMass": null, "dLean": null, "bodyAge": null, "hr": null}, {"date": "2026-09-13", "time": "08:00", "weight": 87.36, "dWeight": null, "score": null, "bmi": null, "dBmi": null, "fat": null, "dFat": null, "muscle": null, "dMuscle": null, "visceral": null, "asmi": null, "whr": null, "bodyType": null, "shape": null, "bmr": null, "water": null, "dWater": null, "bone": null, "protein": null, "dProtein": null, "leanMass": null, "dLean": null, "bodyAge": null, "hr": null}, {"date": "2026-09-14", "time": "08:00", "weight": 87.03, "dWeight": null, "score": null, "bmi": null, "dBmi": null, "fat": null, "dFat": null, "muscle": null, "dMuscle": null, "visceral": null, "asmi": null, "whr": null, "bodyType": null, "shape": null, "bmr": null, "water": null, "dWater": null, "bone": null, "protein": null, "dProtein": null, "leanMass": null, "dLean": null, "bodyAge": null, "hr": null}, {"date": "2026-09-15", "time": "21:54", "weight": 86.7, "dWeight": null, "score": 67.0, "bmi": 28.6, "dBmi": null, "fat": 26.6, "dFat": null, "muscle": 34.0, "dMuscle": null, "visceral": 13.0, "asmi": 9.5, "whr": 0.94, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1745.0, "water": 53.8, "dWater": null, "bone": 3.34, "protein": 15.7, "dProtein": null, "leanMass": 63.6, "dLean": null, "bodyAge": 44.0, "hr": 76.0}, {"date": "2026-09-16", "time": "06:37", "weight": 86.0, "dWeight": null, "score": 67.0, "bmi": 28.3, "dBmi": null, "fat": 26.7, "dFat": null, "muscle": 33.8, "dMuscle": null, "visceral": 13.0, "asmi": 9.2, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1736.0, "water": 53.6, "dWater": null, "bone": 3.33, "protein": 15.8, "dProtein": null, "leanMass": 63.0, "dLean": null, "bodyAge": 44.0, "hr": 81.0}, {"date": "2026-09-16", "time": "22:12", "weight": 86.45, "dWeight": null, "score": 67.0, "bmi": 28.5, "dBmi": null, "fat": 26.5, "dFat": null, "muscle": 33.9, "dMuscle": null, "visceral": 13.0, "asmi": 9.4, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1742.0, "water": 53.8, "dWater": null, "bone": 3.34, "protein": 15.8, "dProtein": null, "leanMass": 63.5, "dLean": null, "bodyAge": 44.0, "hr": 85.0}, {"date": "2026-09-17", "time": "06:39", "weight": 85.85, "dWeight": null, "score": 67.0, "bmi": 28.2, "dBmi": null, "fat": 26.7, "dFat": null, "muscle": 33.6, "dMuscle": null, "visceral": 13.0, "asmi": 9.1, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1728.0, "water": 53.7, "dWater": null, "bone": 3.31, "protein": 15.7, "dProtein": null, "leanMass": 62.9, "dLean": null, "bodyAge": 43.0, "hr": 89.0}, {"date": "2026-09-17", "time": "21:16", "weight": 86.55, "dWeight": null, "score": 70.0, "bmi": 28.5, "dBmi": null, "fat": 26.7, "dFat": null, "muscle": 33.8, "dMuscle": null, "visceral": 13.0, "asmi": 9.3, "whr": 0.94, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1737.0, "water": 53.8, "dWater": null, "bone": 3.33, "protein": 15.7, "dProtein": null, "leanMass": 63.4, "dLean": null, "bodyAge": 44.0, "hr": 84.0}, {"date": "2026-09-18", "time": "06:39", "weight": 85.7, "dWeight": null, "score": 70.0, "bmi": 28.2, "dBmi": null, "fat": 26.8, "dFat": null, "muscle": 33.7, "dMuscle": null, "visceral": 13.0, "asmi": 9.2, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1732.0, "water": 53.5, "dWater": null, "bone": 3.32, "protein": 15.8, "dProtein": null, "leanMass": 62.7, "dLean": null, "bodyAge": 43.0, "hr": 99.0}, {"date": "2026-09-18", "time": "21:43", "weight": 86.25, "dWeight": null, "score": 70.0, "bmi": 28.3, "dBmi": null, "fat": 26.7, "dFat": null, "muscle": 33.7, "dMuscle": null, "visceral": 13.0, "asmi": 9.3, "whr": 0.94, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1734.0, "water": 53.7, "dWater": null, "bone": 3.32, "protein": 15.7, "dProtein": null, "leanMass": 63.2, "dLean": null, "bodyAge": 44.0, "hr": 89.0}, {"date": "2026-09-19", "time": "06:31", "weight": 85.55, "dWeight": null, "score": 70.0, "bmi": 28.2, "dBmi": null, "fat": 26.8, "dFat": null, "muscle": 33.7, "dMuscle": null, "visceral": 13.0, "asmi": 9.2, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1731.0, "water": 53.5, "dWater": null, "bone": 3.32, "protein": 15.8, "dProtein": null, "leanMass": 62.6, "dLean": null, "bodyAge": 43.0, "hr": 94.0}, {"date": "2026-09-19", "time": "20:22", "weight": 86.2, "dWeight": null, "score": 70.0, "bmi": 28.3, "dBmi": null, "fat": 26.7, "dFat": null, "muscle": 33.7, "dMuscle": null, "visceral": 13.0, "asmi": 9.3, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1735.0, "water": 53.7, "dWater": null, "bone": 3.32, "protein": 15.7, "dProtein": null, "leanMass": 63.2, "dLean": null, "bodyAge": 44.0, "hr": 84.0}, {"date": "2026-09-20", "time": "06:42", "weight": 85.65, "dWeight": null, "score": 70.0, "bmi": 28.2, "dBmi": null, "fat": 26.7, "dFat": null, "muscle": 33.7, "dMuscle": null, "visceral": 13.0, "asmi": 9.2, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1734.0, "water": 53.5, "dWater": null, "bone": 3.32, "protein": 15.9, "dProtein": null, "leanMass": 62.8, "dLean": null, "bodyAge": 43.0, "hr": 85.0}, {"date": "2026-09-20", "time": "22:36", "weight": 86.45, "dWeight": null, "score": 67.0, "bmi": 28.5, "dBmi": null, "fat": 26.6, "dFat": null, "muscle": 33.8, "dMuscle": null, "visceral": 13.0, "asmi": 9.4, "whr": 0.94, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1736.0, "water": 53.8, "dWater": null, "bone": 3.32, "protein": 15.8, "dProtein": null, "leanMass": 63.5, "dLean": null, "bodyAge": 44.0, "hr": 85.0}, {"date": "2026-09-21", "time": "06:43", "weight": 85.7, "dWeight": null, "score": 67.0, "bmi": 28.2, "dBmi": null, "fat": 26.7, "dFat": null, "muscle": 33.8, "dMuscle": null, "visceral": 13.0, "asmi": 9.2, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1736.0, "water": 53.5, "dWater": null, "bone": 3.32, "protein": 15.9, "dProtein": null, "leanMass": 62.8, "dLean": null, "bodyAge": 43.0, "hr": 89.0}, {"date": "2026-09-21", "time": "21:31", "weight": 86.3, "dWeight": null, "score": 67.0, "bmi": 28.5, "dBmi": null, "fat": 26.5, "dFat": null, "muscle": 33.8, "dMuscle": null, "visceral": 13.0, "asmi": 9.3, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1739.0, "water": 53.8, "dWater": null, "bone": 3.33, "protein": 15.8, "dProtein": null, "leanMass": 63.4, "dLean": null, "bodyAge": 44.0, "hr": 81.0}, {"date": "2026-09-22", "time": "06:38", "weight": 85.25, "dWeight": null, "score": 70.0, "bmi": 28.1, "dBmi": null, "fat": 26.7, "dFat": null, "muscle": 33.6, "dMuscle": null, "visceral": 13.0, "asmi": 9.1, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1729.0, "water": 53.5, "dWater": null, "bone": 3.31, "protein": 15.9, "dProtein": null, "leanMass": 62.5, "dLean": null, "bodyAge": 43.0, "hr": 93.0}, {"date": "2026-09-22", "time": "22:08", "weight": 85.65, "dWeight": null, "score": 71.0, "bmi": 28.2, "dBmi": null, "fat": 26.4, "dFat": null, "muscle": 33.7, "dMuscle": null, "visceral": 13.0, "asmi": 9.3, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1732.0, "water": 53.9, "dWater": null, "bone": 3.31, "protein": 15.8, "dProtein": null, "leanMass": 63.0, "dLean": null, "bodyAge": 43.0, "hr": 83.0}, {"date": "2026-09-23", "time": "06:37", "weight": 85.25, "dWeight": null, "score": 71.0, "bmi": 28.1, "dBmi": null, "fat": 26.4, "dFat": null, "muscle": 33.6, "dMuscle": null, "visceral": 13.0, "asmi": 9.3, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1730.0, "water": 53.8, "dWater": null, "bone": 3.31, "protein": 15.9, "dProtein": null, "leanMass": 62.7, "dLean": null, "bodyAge": 43.0, "hr": 86.0}, {"date": "2026-09-23", "time": "21:45", "weight": 86.0, "dWeight": null, "score": 67.0, "bmi": 28.3, "dBmi": null, "fat": 26.4, "dFat": null, "muscle": 33.6, "dMuscle": null, "visceral": 13.0, "asmi": 9.3, "whr": 0.94, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1728.0, "water": 54.1, "dWater": null, "bone": 3.31, "protein": 15.7, "dProtein": null, "leanMass": 63.3, "dLean": null, "bodyAge": 44.0, "hr": 79.0}, {"date": "2026-09-24", "time": "06:41", "weight": 85.25, "dWeight": null, "score": 68.0, "bmi": 28.1, "dBmi": null, "fat": 26.5, "dFat": null, "muscle": 33.4, "dMuscle": null, "visceral": 13.0, "asmi": 9.1, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1723.0, "water": 53.8, "dWater": null, "bone": 3.3, "protein": 15.8, "dProtein": null, "leanMass": 62.7, "dLean": null, "bodyAge": 43.0, "hr": 91.0}, {"date": "2026-09-24", "time": "22:06", "weight": 86.3, "dWeight": null, "score": 67.0, "bmi": 28.5, "dBmi": null, "fat": 26.4, "dFat": null, "muscle": 33.9, "dMuscle": null, "visceral": 13.0, "asmi": 9.4, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1741.0, "water": 54.0, "dWater": null, "bone": 3.33, "protein": 15.7, "dProtein": null, "leanMass": 63.5, "dLean": null, "bodyAge": 44.0, "hr": 76.0}, {"date": "2026-09-25", "time": "07:19", "weight": 85.4, "dWeight": -0.9, "score": 68.0, "bmi": 28.2, "dBmi": -0.3, "fat": 26.6, "dFat": 0.2, "muscle": 33.7, "dMuscle": -0.2, "visceral": 13.0, "asmi": 9.2, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1731.0, "water": 53.7, "dWater": -0.3, "bone": 3.31, "protein": 15.8, "dProtein": 0.1, "leanMass": 62.7, "dLean": -0.8, "bodyAge": 43.0, "hr": 83.0}, {"date": "2026-09-25", "time": "21:51", "weight": 85.95, "dWeight": null, "score": 68.0, "bmi": 28.2, "dBmi": null, "fat": 26.3, "dFat": null, "muscle": 34.0, "dMuscle": null, "visceral": 13.0, "asmi": 9.4, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1743.0, "water": 54.0, "dWater": null, "bone": 3.34, "protein": 15.8, "dProtein": null, "leanMass": 63.3, "dLean": null, "bodyAge": 43.0, "hr": 77.0}, {"date": "2026-09-26", "time": "06:52", "weight": 85.05, "dWeight": null, "score": 68.0, "bmi": 28.0, "dBmi": null, "fat": 26.5, "dFat": null, "muscle": 33.6, "dMuscle": null, "visceral": 13.0, "asmi": 9.2, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1728.0, "water": 53.8, "dWater": null, "bone": 3.31, "protein": 15.8, "dProtein": null, "leanMass": 62.5, "dLean": null, "bodyAge": 43.0, "hr": 90.0}, {"date": "2026-09-27", "time": "07:11", "weight": 84.95, "dWeight": null, "score": 68.0, "bmi": 28.0, "dBmi": null, "fat": 26.6, "dFat": null, "muscle": 33.4, "dMuscle": null, "visceral": 13.0, "asmi": 9.2, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1723.0, "water": 53.7, "dWater": null, "bone": 3.3, "protein": 15.8, "dProtein": null, "leanMass": 62.4, "dLean": null, "bodyAge": 43.0, "hr": 89.0}, {"date": "2026-09-27", "time": "22:23", "weight": 85.7, "dWeight": null, "score": 68.0, "bmi": 28.2, "dBmi": null, "fat": 26.4, "dFat": null, "muscle": 33.8, "dMuscle": null, "visceral": 13.0, "asmi": 9.4, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1738.0, "water": 53.8, "dWater": null, "bone": 3.32, "protein": 15.9, "dProtein": null, "leanMass": 63.1, "dLean": null, "bodyAge": 43.0, "hr": 83.0}, {"date": "2026-09-28", "time": "06:37", "weight": 84.9, "dWeight": null, "score": 71.0, "bmi": 28.0, "dBmi": null, "fat": 26.5, "dFat": null, "muscle": 33.4, "dMuscle": null, "visceral": 13.0, "asmi": 9.1, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1723.0, "water": 53.7, "dWater": null, "bone": 3.3, "protein": 15.9, "dProtein": null, "leanMass": 62.4, "dLean": null, "bodyAge": 43.0, "hr": 90.0}, {"date": "2026-09-28", "time": "21:42", "weight": 85.8, "dWeight": null, "score": 68.0, "bmi": 28.2, "dBmi": null, "fat": 26.4, "dFat": null, "muscle": 33.5, "dMuscle": null, "visceral": 13.0, "asmi": 9.3, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1728.0, "water": 54.0, "dWater": null, "bone": 3.31, "protein": 15.7, "dProtein": null, "leanMass": 63.1, "dLean": null, "bodyAge": 43.0, "hr": 77.0}, {"date": "2026-09-29", "time": "06:42", "weight": 84.9, "dWeight": null, "score": 70.0, "bmi": 28.0, "dBmi": null, "fat": 26.6, "dFat": null, "muscle": 33.3, "dMuscle": null, "visceral": 13.0, "asmi": 9.1, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1719.0, "water": 53.7, "dWater": null, "bone": 3.29, "protein": 15.8, "dProtein": null, "leanMass": 62.3, "dLean": null, "bodyAge": 43.0, "hr": 77.0}, {"date": "2026-09-29", "time": "21:36", "weight": 85.35, "dWeight": null, "score": 71.0, "bmi": 28.1, "dBmi": null, "fat": 26.3, "dFat": null, "muscle": 33.6, "dMuscle": null, "visceral": 13.0, "asmi": 9.3, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1730.0, "water": 54.0, "dWater": null, "bone": 3.31, "protein": 15.8, "dProtein": null, "leanMass": 62.9, "dLean": null, "bodyAge": 43.0, "hr": 77.0}, {"date": "2026-09-30", "time": "06:39", "weight": 84.65, "dWeight": null, "score": 71.0, "bmi": 27.8, "dBmi": null, "fat": 26.4, "dFat": null, "muscle": 33.2, "dMuscle": null, "visceral": 13.0, "asmi": 9.1, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1714.0, "water": 53.9, "dWater": null, "bone": 3.28, "protein": 15.8, "dProtein": null, "leanMass": 62.3, "dLean": null, "bodyAge": 43.0, "hr": 87.0}, {"date": "2026-09-30", "time": "21:40", "weight": 85.0, "dWeight": null, "score": 71.0, "bmi": 28.0, "dBmi": null, "fat": 26.5, "dFat": null, "muscle": 33.3, "dMuscle": null, "visceral": 13.0, "asmi": 9.2, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1718.0, "water": 53.9, "dWater": null, "bone": 3.29, "protein": 15.7, "dProtein": null, "leanMass": 62.5, "dLean": null, "bodyAge": 43.0, "hr": 77.0}, {"date": "2026-10-01", "time": "07:09", "weight": 84.25, "dWeight": null, "score": 70.0, "bmi": 27.7, "dBmi": null, "fat": 26.6, "dFat": null, "muscle": 33.0, "dMuscle": null, "visceral": 13.0, "asmi": 9.0, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1708.0, "water": 53.7, "dWater": null, "bone": 3.27, "protein": 15.8, "dProtein": null, "leanMass": 61.8, "dLean": null, "bodyAge": 44.0, "hr": 86.0}, {"date": "2026-10-01", "time": "22:04", "weight": 85.05, "dWeight": null, "score": 70.0, "bmi": 28.0, "dBmi": null, "fat": 26.5, "dFat": null, "muscle": 33.3, "dMuscle": null, "visceral": 13.0, "asmi": 9.3, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1717.0, "water": 53.9, "dWater": null, "bone": 3.28, "protein": 15.7, "dProtein": null, "leanMass": 62.5, "dLean": null, "bodyAge": 43.0, "hr": 70.0}, {"date": "2026-10-02", "time": "06:24", "weight": 84.35, "dWeight": null, "score": 71.0, "bmi": 27.7, "dBmi": null, "fat": 26.6, "dFat": null, "muscle": 33.2, "dMuscle": null, "visceral": 13.0, "asmi": 9.1, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1713.0, "water": 53.7, "dWater": null, "bone": 3.28, "protein": 15.8, "dProtein": null, "leanMass": 61.9, "dLean": null, "bodyAge": 43.0, "hr": 85.0}, {"date": "2026-10-02", "time": "22:23", "weight": 84.9, "dWeight": null, "score": 67.0, "bmi": 28.0, "dBmi": null, "fat": 26.6, "dFat": null, "muscle": 33.0, "dMuscle": null, "visceral": 13.0, "asmi": 9.3, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1708.0, "water": 53.8, "dWater": null, "bone": 3.27, "protein": 15.7, "dProtein": null, "leanMass": 62.3, "dLean": null, "bodyAge": 44.0, "hr": 72.0}, {"date": "2026-10-03", "time": "06:57", "weight": 84.3, "dWeight": null, "score": 67.0, "bmi": 27.7, "dBmi": null, "fat": 26.7, "dFat": null, "muscle": 32.9, "dMuscle": null, "visceral": 13.0, "asmi": 9.1, "whr": 0.93, "bodyType": "肥胖型", "shape": "苹果型", "bmr": 1703.0, "water": 53.6, "dWater": null, "bone": 3.26, "protein": 15.8, "dProtein": null, "leanMass": 61.8, "dLean": null, "bodyAge": 44.0, "hr": 84.0}], "builtAt": "2026-10-04 14:06"};
+</script>
+<script>
+(function(){
+  "use strict";
+  const ROWS = (window.__DATA__.rows || []).slice().sort(function(a,b){
+    return (a.date + a.time).localeCompare(b.date + b.time);
+  });
+  const $ = function(s){ return document.querySelector(s); };
+  const num = function(v){ return (v === null || v === undefined || v === "" || isNaN(v)) ? null : +v; };
+  const f1 = function(v, n){ return v === null || v === undefined ? "—" : (+v).toFixed(n === undefined ? 1 : n); };
+  const md = function(s){ const p = String(s).split("-"); return p.length === 3 ? (+p[1]) + "/" + (+p[2]) : s; };
+
+  // ── 参数（本机覆盖）──
+  const LS = "jinxin.bodytrack.cfg";
+  let CFG = { sex:"男", height:174, target:70 };
+  try{ const saved = JSON.parse(localStorage.getItem(LS) || "null");
+       if(saved){ if(saved.target === 72.5) delete saved.target;   // 旧默认值不沿用，让新默认生效
+                  CFG = Object.assign(CFG, saved); } }catch(e){}
+
+  // ── 判档规则 ──
+  function judge(key, v){
+    if(v === null) return ["—","neutral"];
+    if(key === "bmi")
+      return v >= 28 ? ["肥胖","bad"] : v >= 24 ? ["超重","warn"] : v >= 18.5 ? ["标准","good"] : ["偏轻","warn"];
+    if(key === "fat")
+      return CFG.sex === "女"
+        ? (v >= 30 ? ["偏高","bad"] : v >= 25 ? ["略高","warn"] : ["标准","good"])
+        : (v >= 25 ? ["偏高","bad"] : v >= 20 ? ["略高","warn"] : ["标准","good"]);
+    if(key === "visceral") return v >= 15 ? ["高","bad"] : v >= 10 ? ["偏高","warn"] : ["标准","good"];
+    if(key === "whr")
+      return CFG.sex === "女" ? (v >= 0.85 ? ["偏高","bad"] : ["标准","good"])
+                              : (v >= 0.90 ? ["偏高","bad"] : ["标准","good"]);
+    if(key === "water") return v < 50 ? ["偏低","warn"] : ["标准","good"];
+    if(key === "protein") return v < 16 ? ["偏低","warn"] : ["标准","good"];
+    return ["","neutral"];
+  }
+  const TAG = { good:"t-good", warn:"t-warn", bad:"t-bad", neutral:"t-neutral" };
+
+  // ── 顶部 ──
+  function renderHead(){
+    const n = VIEW.length;
+    const DIMNAME = { all:"次测量", morning:"个早晨读数", evening:"个晚间读数", daily:"天（当日平均）" };
+    $("#head-sub").textContent = n
+      ? "共 " + n + " " + DIMNAME[MODE] + " · 最新 " + VIEW[n-1].date + " " + VIEW[n-1].time + " · 数据源 华为运动健康体脂秤"
+      : "还没有数据";
+    if(!n) return;
+
+    const last = VIEW[n-1];
+    const w = num(last.weight);
+    $("#hero-w").innerHTML = f1(w, 2) + "<small>公斤</small>";
+
+    const dw = num(last._d_weight);
+    if(dw !== null && !isNaN(dw)){
+      const cls = dw < -0.005 ? "down" : dw > 0.005 ? "up" : "flat";
+      const arrow = dw < -0.005 ? "↓" : dw > 0.005 ? "↑" : "→";
+      const who = last._prevDate ? "较上次同口径（" + md(last._prevDate) + "）" : "";
+      $("#hero-delta").innerHTML =
+        '<span class="delta ' + cls + '">' + arrow + " " + Math.abs(dw).toFixed(2) + " kg</span>" +
+        (who ? '<span class="hero-meta" style="margin-left:8px">' + who + "</span>" : "");
+    } else {
+      $("#hero-delta").innerHTML = "";
+    }
+    const extra = [];
+    if(num(last.bodyAge) !== null) extra.push("身体年龄 " + f1(last.bodyAge, 0) + " 岁");
+    if(num(last.score) !== null) extra.push("身体得分 " + f1(last.score, 0) + " 分");
+    if(last.bodyType) extra.push(last.shape ? last.bodyType + " · " + last.shape : last.bodyType);
+    $("#hero-meta").textContent = extra.join(" ｜ ");
+
+    // 进度
+    // 起点＝台账最早一条（现为补录起点 2026-09-05 · 90.0 kg），与当前口径（早/晚/日均）、时间段裁行都无关
+    const start = num(ROWS[0].weight), tgt = num(CFG.target);
+    if(start !== null && tgt !== null && w !== null){
+      const total = start - tgt;
+      let done = start - w;
+      let pct = total > 0 ? Math.max(0, Math.min(100, done / total * 100)) : 0;
+      $("#prog-fill").style.width = pct.toFixed(1) + "%";
+      $("#prog-a").textContent = "起点 " + md(ROWS[0].date) + " · " + f1(start, 2) + " kg";
+      $("#prog-b").textContent = "目标 " + f1(tgt) + " kg";
+      const left = w - tgt;
+      $("#prog-title").innerHTML = left > 0
+        ? "还差 <span style='color:var(--accent)'>" + f1(left, 2) + " kg</span>"
+        : "<span style='color:var(--good)'>已达标</span>";
+      $("#prog-note").textContent = total > 0
+        ? "已减 " + f1(done, 2) + " kg ／ 全程 " + f1(total, 2) + " kg（" + pct.toFixed(0) + "%）"
+        : "目标高于起点，请检查目标值";
+    } else {
+      $("#prog-title").textContent = "—";
+      $("#prog-note").textContent = "填写目标体重后显示进度";
+    }
+  }
+
+  // ── 进度评价与建议：固定早晨口径（与打卡条同源），不随口径切换变化 ──
+  function renderAssess(){
+    const box = $("#assess"); if(!box) return;
+    const am = ROWS.filter(function(r){ return (r.time || "") < "12:00" && num(r.weight) !== null; });
+    if(am.length < 2){
+      box.innerHTML = '<div class="a-line">数据还太少 —— 攒够 2 个早晨读数后这里出评价。</div>';
+      return;
+    }
+    const day = 864e5;
+    const last = am[am.length - 1];
+    const wLast = num(last.weight);
+    const tLast = new Date(last.date).getTime();
+    // 近 7 天窗口：末条往前 **7 天**（含两端）⇒ 8 个日期点、跨度 7 天（如 周四 → 下周四）。
+    // ⛔ 别用 <=6：那是 6 天跨度，首尾相减只反映 6 天的变化，标签「近 7 天」即虚标。
+    const w7 = am.filter(function(r){ return (tLast - new Date(r.date).getTime()) / day <= 7; });
+    const d7 = wLast - num(w7[0].weight);
+    const n7 = Math.max(1, Math.round((tLast - new Date(w7[0].date).getTime()) / day));
+    // 判档用显示精度（两位）：否则 1.0000000000000002 会掉进「快于上限」档，与显示的 1.00 自相矛盾
+    const pace = Math.round((-d7 / n7 * 7) * 100) / 100;        // kg/周，正＝降
+    // 累计：起点＝台账首条，与进度条同口径
+    const start = num(ROWS[0].weight);
+    const totalDays = Math.round((tLast - new Date(ROWS[0].date).getTime()) / day) + 1;
+    const totalDrop = start - wLast;
+    // 肌肉：早晨口径首末对比
+    const m0 = num(am[0].muscle), m1 = num(last.muscle);
+    const dm = (m0 !== null && m1 !== null) ? m1 - m0 : null;
+    const amDrop = num(am[0].weight) - wLast;
+    const mRatio = (dm !== null && amDrop > 0.05) ? (-dm / amDrop) : null;
+
+    const L = [];
+    // 标签一律用实际跨度 n7（正常 7；窗口首条因缺测晚于 T-7 时自动变小），不写死「7 天」
+    if(pace >= 0.5 && pace <= 1.0)
+      L.push(["good", "近 " + n7 + " 天 " + d7.toFixed(2) + " kg（≈每周 " + pace.toFixed(2) +
+        " kg）—— 落在每周 0.5~1.0 kg 的健康区间，节奏正好，保持住"]);
+    else if(pace > 1.0)
+      L.push(["warn", "近 " + n7 + " 天 ≈每周 " + pace.toFixed(2) +
+        " kg，快于每周 1.0 kg 的健康上限 —— 容易掉肌肉，适当放缓"]);
+    else if(pace >= 0.2)
+      L.push(["good", "近 " + n7 + " 天 ≈每周 " + pace.toFixed(2) + " kg，慢于常规区间但方向对 —— 稳比快重要"]);
+    else
+      L.push(["warn", "近 " + n7 + " 天体重几乎没动（" + d7.toFixed(2) + " kg）—— 平台期，先查饮食与睡眠，别急着加码"]);
+    L.push([totalDrop > 0 ? "good" : "warn",
+      "起点 " + md(ROWS[0].date) + " 以来第 " + totalDays + " 天，累计 " + (-totalDrop).toFixed(2) + " kg，整体方向" +
+      (totalDrop > 0 ? "稳定向下" : "尚未向下，需复核执行")]);
+    if(mRatio !== null && dm < -0.2)
+      L.push([mRatio > 0.35 ? "warn" : "good",
+        "骨骼肌量同期 " + dm.toFixed(1) + " kg，约占体重降幅 " + Math.round(mRatio * 100) + "%" +
+        (mRatio > 0.35 ? " —— 偏高，减掉的不只是脂肪，保肌必须跟上" : "，占比合理")]);
+    const vis = num(last.visceral);
+    if(vis !== null && vis >= 10)
+      L.push(["warn", "内脏脂肪等级 " + vis.toFixed(0) + " 仍偏高（标准 <10）—— 接下来最主要的改善目标"]);
+
+    const tips = [];
+    const pro = num(last.protein);
+    if(pro !== null && pro < 16)
+      tips.push("蛋白质 " + pro.toFixed(1) + "% 偏低：每天吃到约 " + Math.round(wLast * 1.2) +
+        " g（每公斤体重 1.2 g），鸡胸、鱼虾、蛋、豆制品分摊到三餐");
+    if(dm !== null && dm < -0.2)
+      tips.push("每周 2~3 次抗阻训练（深蹲、俯卧撑、弹力带）—— 肌肉留住，基础代谢才不掉");
+    if(vis !== null && vis >= 10)
+      tips.push("内脏脂肪靠总脂肪继续降：每周 3~5 次 30 分钟有氧（快走即可），不加码、不断食");
+    tips.push("维持当前节奏，继续固定早晨空腹测量 —— 口径一致，曲线才可比");
+
+    box.innerHTML =
+      L.map(function(x){
+        return '<div class="a-line"><span class="a-dot" style="background:var(--' + x[0] + ')"></span><span>' + x[1] + "</span></div>";
+      }).join("") +
+      '<ol class="a-tips">' + tips.map(function(t){ return "<li>" + t + "</li>"; }).join("") + "</ol>" +
+      '<div class="a-note">按体脂秤数据推算的通用建议，供参考；身体不适以医生意见为准。</div>';
+  }
+
+  // ── 指标卡 ──
+  const CARD_DEFS = [
+    { key:"bmi",       name:"BMI",         unit:"",         d:1 },
+    { key:"fat",       name:"脂肪率",       unit:"%",        d:1 },
+    { key:"muscle",    name:"骨骼肌量",     unit:"kg",       d:1 },
+    { key:"visceral",  name:"内脏脂肪等级", unit:"级",       d:1 },
+    { key:"whr",       name:"推测腰臀比",   unit:"",         d:2 },
+    { key:"asmi",      name:"四肢骨骼肌指数", unit:"kg/m²",  d:1 },
+    { key:"bmr",       name:"基础代谢率",   unit:"千卡/日",  d:0 },
+    { key:"protein",   name:"蛋白质",       unit:"%",        d:1 },
+    { key:"water",     name:"水分率",       unit:"%",        d:1 },
+    { key:"leanMass",  name:"去脂体重",     unit:"kg",       d:1 },
+    { key:"bone",      name:"骨盐量",       unit:"kg",       d:2 },
+    { key:"hr",        name:"心率",         unit:"次/分",    d:0 }
+  ];
+  function renderCards(){
+    if(!VIEW.length) return;
+    const last = VIEW[VIEW.length-1];
+    const box = $("#cards"); box.innerHTML = "";
+    CARD_DEFS.forEach(function(def){
+      const v = num(last[def.key]);
+      if(v === null) return;
+      const j = judge(def.key, v);
+      let chgHtml = "";
+      const dv = num(last["_d_" + def.key]);   // 只在同一时间维度内比，无同口径上一条则为 null
+      if(dv !== null && !isNaN(dv) && Math.abs(dv) >= Math.pow(10, -def.d) / 2){
+        const down = dv < 0;
+        // 体重/脂肪/内脏/腰臀比/BMI：降低是好事；肌肉/代谢/蛋白/水分/骨量：升高是好事
+        const goodWhenDown = ["bmi","fat","visceral","whr","leanMass"].indexOf(def.key) >= 0;
+        const isGood = goodWhenDown ? down : !down;
+        chgHtml = '<span class="chg ' + (isGood ? "down" : "up") + '">' +
+                  (down ? "↓" : "↑") + Math.abs(dv).toFixed(def.d) + "</span>";
+      }
+      const el = document.createElement("div");
+      el.className = "k";
+      el.innerHTML = '<div class="name">' + def.name + "</div>" +
+        '<div class="val">' + f1(v, def.d) + (def.unit ? "<span>" + def.unit + "</span>" : "") + chgHtml + "</div>" +
+        (j[1] !== "neutral" ? '<span class="tag ' + TAG[j[1]] + '">' + j[0] + "</span>" : "");
+      box.appendChild(el);
+    });
+  }
+
+  // ── 视图：全部 / 早晨 / 晚间 / 当日平均 ──
+  const NUMKEYS = ["weight","score","bmi","fat","muscle","visceral","asmi","whr","bmr",
+                   "water","bone","protein","leanMass","bodyAge","hr"];
+  const DKEYS = ["dWeight","dBmi","dFat","dMuscle","dWater","dProtein","dLean"];
+  let MODE = "all";
+  let VIEW = ROWS;
+
+  // 同日多条 → 一条：数值列取算术平均（与 App 官方"日均"口径一致），文本列取最后一条
+  function aggregateDaily(rows){
+    const map = {};
+    rows.forEach(function(r){ (map[r.date] = map[r.date] || []).push(r); });
+    return Object.keys(map).sort().map(function(d){
+      const g = map[d];
+      const o = Object.assign({}, g[g.length - 1]);
+      o.date = d; o.time = "日均"; o._n = g.length;
+      NUMKEYS.forEach(function(k){
+        const vals = g.map(function(x){ return num(x[k]); }).filter(function(v){ return v !== null; });
+        o[k] = vals.length ? vals.reduce(function(a, b){ return a + b; }, 0) / vals.length : null;
+      });
+      DKEYS.forEach(function(k){ o[k] = null; });
+      return o;
+    });
+  }
+  // "较上次"只在同一时间维度内比：早晨比早晨、晚间比晚间、日均比日均。
+  // 找不到同维度的上一条就留空，绝不用晚间读数去比早晨读数。
+  function dimOf(r){ return MODE === "daily" ? "d" : ((r.time || "") < "12:00" ? "am" : "pm"); }
+  function withDelta(rows){
+    const out = rows.map(function(r){ return Object.assign({}, r); });
+    const seen = {};
+    out.forEach(function(r, i){
+      const c = dimOf(r);
+      const p = seen[c] === undefined ? null : out[seen[c]];
+      NUMKEYS.forEach(function(k){
+        const v = num(r[k]), pv = p ? num(p[k]) : null;
+        r["_d_" + k] = (v !== null && pv !== null) ? v - pv : null;
+      });
+      r._dim = c;
+      r._prevDate = p ? p.date : null;
+      seen[c] = i;
+    });
+    return out;
+  }
+  function viewRows(){
+    let v;
+    if(MODE === "morning")      v = ROWS.filter(function(r){ return (r.time || "") < "12:00"; });
+    else if(MODE === "evening") v = ROWS.filter(function(r){ return (r.time || "") >= "12:00"; });
+    else if(MODE === "daily")   v = aggregateDaily(ROWS);
+    else                        v = ROWS.slice();
+    return withDelta(v);
+  }
+  function setMode(m){
+    MODE = m; VIEW = viewRows();
+    document.querySelectorAll("#seg button").forEach(function(b){
+      b.classList.toggle("on", b.dataset.mode === m);
+    });
+    const note = $("#seg-note");
+    if(note){
+      const n = VIEW.length;
+      note.textContent =
+        m === "all"     ? "全部 " + n + " 条读数（早晨与晚间混画，仅作对照）" :
+        m === "morning" ? n + " 个早晨空腹读数 —— 评估体重的首选口径" :
+        m === "evening" ? n + " 个晚间读数（含当日饮食与饮水）" :
+                          n + " 天（当天各次读数取平均）—— 与 App 官方日均口径一致";
+    }
+    renderAll();
+  }
+
+  // ── 折线图 ──
+  function chart(host, opt){
+    const pts = VIEW.map(function(r){ return { x:r.date, t:r.time, v:num(r[opt.key]) }; })
+                    .filter(function(p){ return p.v !== null; });
+    const card = document.createElement("div");
+    card.className = "chart-card";
+    const head = document.createElement("div");
+    head.className = "chart-head";
+    const first = pts.length ? pts[0].v : null, lastv = pts.length ? pts[pts.length-1].v : null;
+    const diff = (first !== null && lastv !== null && pts.length > 1) ? (lastv - first) : null;
+    head.innerHTML = '<div><span class="chart-title">' + opt.title + "</span></div>" +
+      '<div class="chart-sub">' + (diff === null ? "" :
+        (diff < 0 ? "↓ " : diff > 0 ? "↑ " : "") + Math.abs(diff).toFixed(opt.d) + " " + (opt.unit || "")) + "</div>";
+    card.appendChild(head);
+
+    if(pts.length === 0){
+      const e = document.createElement("div"); e.className = "empty"; e.textContent = "暂无数据";
+      card.appendChild(e); host.appendChild(card); return;
+    }
+    if(pts.length === 1){
+      const e = document.createElement("div"); e.className = "empty";
+      e.textContent = "目前只有 1 次（" + md(pts[0].x) + " · " + f1(pts[0].v, opt.d) + " " + (opt.unit || "") +
+                      "）——再测几次就会画出趋势线";
+      card.appendChild(e); host.appendChild(card); return;
+    }
+
+    const W = 640, H = 200, padL = 48, padR = 18, padT = 14, padB = 30;
+    const iw = W - padL - padR, ih = H - padT - padB;
+    const vs = pts.map(function(p){ return p.v; });
+    let lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs);
+    const tgt = (opt.targetKey && num(CFG[opt.targetKey]) !== null) ? num(CFG[opt.targetKey]) : null;
+    if(tgt !== null){ lo = Math.min(lo, tgt); hi = Math.max(hi, tgt); }
+    if(hi === lo){ hi += 1; lo -= 1; }
+    const sp = hi - lo; lo -= sp * 0.14; hi += sp * 0.14;
+    const X = function(i){ return padL + iw * i / (pts.length - 1); };
+    const Y = function(v){ return padT + ih * (1 - (v - lo) / (hi - lo)); };
+
+    let s = '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet">';
+    // 横向网格 + y 轴刻度
+    for(let g = 0; g <= 4; g++){
+      const v = lo + (hi - lo) * g / 4, y = Y(v);
+      s += '<line class="gridline" x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y.toFixed(1) + '"/>';
+      s += '<text class="axis" x="' + (padL - 8) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end">' +
+           v.toFixed(opt.d) + "</text>";
+    }
+    // 目标线
+    if(tgt !== null){
+      const ty = Y(tgt);
+      s += '<line x1="' + padL + '" y1="' + ty.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + ty.toFixed(1) +
+           '" stroke="' + (opt.color || "#2563eb") + '" stroke-width="1.4" stroke-dasharray="5 4" opacity=".55"/>';
+      s += '<text class="axis" x="' + (W - padR) + '" y="' + (ty - 6).toFixed(1) + '" text-anchor="end">目标 ' +
+           tgt.toFixed(opt.d) + "</text>";
+    }
+    // 折线
+    const line = pts.map(function(p, i){ return X(i).toFixed(1) + "," + Y(p.v).toFixed(1); }).join(" ");
+    s += '<polyline points="' + line + '" fill="none" stroke="' + (opt.color || "#2563eb") +
+         '" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>';
+    // 数据点
+    const r = pts.length > 26 ? 2.2 : 3.6;
+    pts.forEach(function(p, i){
+      s += '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="' + r +
+           '" fill="' + (opt.color || "#2563eb") + '"><title>' + p.x + " " + p.t + " · " +
+           f1(p.v, opt.d) + " " + (opt.unit || "") + "</title></circle>";
+    });
+    // 末点数值
+    const li = pts.length - 1;
+    s += '<text class="axis" x="' + (X(li) - 6).toFixed(1) + '" y="' + (Y(pts[li].v) - 9).toFixed(1) +
+         '" text-anchor="end" style="font-weight:600;fill:' + (opt.color || "#2563eb") + '">' +
+         f1(pts[li].v, opt.d) + "</text>";
+    // x 轴日期（最多 6 个）
+    const step = Math.max(1, Math.ceil(pts.length / 6));
+    for(let i = 0; i < pts.length; i += step){
+      s += '<text class="axis" x="' + X(i).toFixed(1) + '" y="' + (H - 10) + '" text-anchor="middle">' +
+           md(pts[i].x) + "</text>";
+    }
+    if((pts.length - 1) % step !== 0){
+      s += '<text class="axis" x="' + X(li).toFixed(1) + '" y="' + (H - 10) + '" text-anchor="middle">' +
+           md(pts[li].x) + "</text>";
+    }
+    s += "</svg>";
+    card.insertAdjacentHTML("beforeend", s);
+    host.appendChild(card);
+  }
+
+  function renderCharts(){
+    const host = $("#charts"); host.innerHTML = "";
+    chart(host, { key:"weight", title:"体重（kg）", unit:"kg", d:2, color:"#2563eb", targetKey:"target" });
+    chart(host, { key:"fat", title:"体脂率（%）", unit:"%", d:1, color:"#dc2626" });
+    chart(host, { key:"muscle", title:"骨骼肌量（kg）", unit:"kg", d:1, color:"#16a34a" });
+    chart(host, { key:"visceral", title:"内脏脂肪等级", unit:"级", d:1, color:"#c2410c" });
+    chart(host, { key:"whr", title:"推测腰臀比", unit:"", d:2, color:"#7c3aed" });
+    chart(host, { key:"bmr", title:"基础代谢率（千卡/日）", unit:"千卡/日", d:0, color:"#0891b2" });
+  }
+
+  // ── 明细表行筛选：窗口取数（留最近 N 个日历日内的行 ⇒ 日记读数＝N 行），不参与差值 ──
+  // ⛔ 与上方评价的「近 N 天」同名不同义（那是跨度 ⇒ N+1 点），勿改成同一种算法。
+  let RANGE = 0;   // 0 = 全部
+  function shiftDate(s, n){
+    const p = String(s).split("-");
+    const dt = new Date(+p[0], +p[1] - 1, +p[2] + n);
+    const m = dt.getMonth() + 1, d = dt.getDate();
+    return dt.getFullYear() + "-" + (m < 10 ? "0" + m : m) + "-" + (d < 10 ? "0" + d : d);
+  }
+  function rangedRows(rows){
+    if(!RANGE || !rows.length) return rows;
+    const dates = rows.map(function(r){ return r.date; }).sort();
+    const from = shiftDate(dates[dates.length - 1], -(RANGE - 1));
+    return rows.filter(function(r){ return r.date >= from; });
+  }
+  function setRange(days){
+    RANGE = days;
+    document.querySelectorAll("#rng button").forEach(function(b){
+      b.classList.toggle("on", +b.dataset.days === days);
+    });
+    renderTable();
+  }
+
+  // ── 明细表 ──
+  const COLS = [
+    ["date","日期"],["weight","体重"],["dWeight","较上次"],["bmi","BMI"],["fat","脂肪率"],
+    ["muscle","骨骼肌"],["visceral","内脏脂肪"],["whr","腰臀比"],["asmi","ASMI"],
+    ["bmr","基础代谢"],["water","水分率"],["protein","蛋白质"],["leanMass","去脂体重"],
+    ["bone","骨盐量"],["bodyAge","身体年龄"],["hr","心率"],["score","得分"]
+  ];
+  function renderTable(){
+    const rows = rangedRows(VIEW).slice().reverse();
+    const th = $("#tbl thead"), tb = $("#tbl tbody");
+    th.innerHTML = "<tr>" + COLS.map(function(c){ return "<th>" + c[1] + "</th>"; }).join("") + "</tr>";
+    tb.innerHTML = rows.map(function(r){
+      return "<tr>" + COLS.map(function(c){
+        const key = c[0] === "dWeight" ? "_d_weight" : c[0];
+        const v = r[key];
+        if(c[0] === "date") return "<td>" + v + " " + (r.time || "") + "</td>";
+        if(v === null || v === undefined || v === "") return "<td>—</td>";
+        const d = ["whr","bone","weight","dWeight"].indexOf(c[0]) >= 0 ? 2 : 1;
+        const txt = typeof v === "number" ? (c[0] === "bmr" || c[0] === "hr" || c[0] === "bodyAge" || c[0] === "score"
+                    ? f1(v, 0) : f1(v, d)) : v;
+        return "<td>" + txt + "</td>";
+      }).join("") + "</tr>";
+    }).join("");
+    const note = $("#rng-note");
+    if(note) note.textContent = RANGE
+      ? "显示最近 " + RANGE + " 天内 " + rows.length + " 行（当前口径共 " + VIEW.length + " 行）"
+      : "共 " + rows.length + " 行";
+  }
+
+  // ── 参数交互 ──
+  function fillForm(){ $("#sex").value = CFG.sex; $("#height").value = CFG.height; $("#target").value = CFG.target; }
+  function renderAll(){ renderHead(); renderAssess(); renderCards(); renderCharts(); renderTable(); }
+  $("#save").addEventListener("click", function(){
+    CFG.sex = $("#sex").value;
+    CFG.height = num($("#height").value) || 174;
+    CFG.target = num($("#target").value) || 70;
+    try{ localStorage.setItem(LS, JSON.stringify(CFG)); }catch(e){}
+    $("#set-note").textContent = "已保存（" + new Date().toLocaleTimeString("zh-CN", {hour:"2-digit",minute:"2-digit"}) + "）";
+    renderAll();
+  });
+  $("#reset").addEventListener("click", function(){
+    CFG = { sex:"男", height:174, target:70 };
+    try{ localStorage.removeItem(LS); }catch(e){}
+    fillForm(); $("#set-note").textContent = "已恢复默认"; renderAll();
+  });
+
+  fillForm();
+  VIEW = viewRows();
+  renderAll();
+  document.querySelectorAll("#seg button").forEach(function(b){
+    b.addEventListener("click", function(){ setMode(b.dataset.mode); });
+  });
+  document.querySelectorAll("#rng button").forEach(function(b){
+    b.addEventListener("click", function(){ setRange(+b.dataset.days); });
+  });
+  setMode("morning");
+
+  // ── 顶部按钮：仅 App（WK bridge「board」）内可用 ──
+  //    非 App 环境（浏览器直开 / 线上分享页）整块收起，且不暴露本机路径
+  (function(){
+    const imp = $("#import-btn"), shr = $("#share-btn"), syn = $("#sync-btn"), st = $("#import-status");
+    if(!imp || !shr || !st) return;
+    const bridge = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.board;
+    if(!bridge){
+      const top = document.querySelector(".topbtns");
+      if(top) top.style.display = "none";
+      st.style.display = "none";
+      document.querySelectorAll(".app-only").forEach(function(el){ el.remove(); });
+      return;
+    }
+    // 结果分型 —— kind 由 App 侧判定：脚本「有 JSON 报错」与「压根没输出」必须分开显示
+    const KIND = {
+      ok:      {ic:"✅", txt:"导入完成"},
+      noop:    {ic:"✅", txt:"完成 · 无新数据"},
+      fail:    {ic:"❌", txt:"导入未完成"},
+      abort:   {ic:"⚠️", txt:"异常中断"},
+      timeout: {ic:"⚠️", txt:"超时中断"},
+      lost:    {ic:"⚠️", txt:"上次运行未记结果"},
+      start:   {ic:"⏳", txt:"正在运行…"}
+    };
+    const STAGE_CN = {switch:"切换采集机", gate:"活体闸门", nav:"导航到历史记录",
+                      parse:"读取列表", collect:"采集读数", ledger:"落账", restore:"归还日常机"};
+    const esc = function(s){ return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
+    const hhmm = function(ts){ const m = /(\d{2}:\d{2})/.exec(ts || ""); return m ? m[1] : ""; };
+    let hist = [], poll = null, running = false, liveMsg = "";
+
+    // 摘要：成功报条数与最新时间；失败报「哪一步 + 为什么」，stage 是脚本的机器名，翻成中文更好读
+    function summary(r){
+      if(!r) return "";
+      if(r.kind === "ok")   return "新增 " + r.imported + " 条 · 最新 " + esc(r.latest || "") + " · 用时 " + r.elapsed + "s";
+      if(r.kind === "noop") return "台账已是最新（" + esc(r.latest || r.note || "") + "）· 用时 " + r.elapsed + "s";
+      if(r.kind === "lost") return esc(r.err || "没记下结果");
+      const stage = r.stage ? (STAGE_CN[r.stage] || r.stage) + "：" : "";
+      return stage + esc(r.err || "未知错误") +
+             (r.elapsed ? " · 用时 " + r.elapsed + "s" : "") +
+             (r.exit ? " · 退出码 " + r.exit : "");
+    }
+    function render(cur, live){
+      let html, cls = "";
+      if(live){
+        html = '<div class="imp-head"><span class="ic">⏳</span><span>正在采集…</span></div>' +
+               '<div class="imp-body">' + esc(liveMsg || "正在从 iPhone 镜像读取华为运动健康……") + '</div>';
+      }else{
+        const k = KIND[cur && cur.kind] || KIND.fail;
+        cls = (cur && (cur.kind === "ok" || cur.kind === "noop")) ? "ok" : "bad";
+        html = '<div class="imp-head ' + cls + '"><span class="ic">' + k.ic + '</span><span>' + k.txt +
+               '</span>' + (cur && cur.ts ? '<span class="t">' + esc(hhmm(cur.ts)) + '</span>' : '') + '</div>';
+        const body = summary(cur);
+        if(body) html += '<div class="imp-body">' + body + '</div>';
+        if(hist.length > 1){
+          const rows = hist.slice(0, 8).map(function(r){
+            const kk = KIND[r.kind] || KIND.fail;
+            return '<div class="imp-log"><span class="ts">' + esc(hhmm(r.ts)) + '</span><span>' + kk.ic +
+                   '</span><span class="sum">' + (r.kind === "start" ? "运行中" : summary(r)) + '</span></div>';
+          }).join("");
+          html += '<div class="imp-toggle" id="imp-toggle">最近 ' + hist.length + ' 次 ▾</div>' +
+                  '<div class="imp-more" id="imp-more">' + rows + '</div>';
+        }
+      }
+      st.innerHTML = html;
+      st.style.display = "block";
+      const tg = $("#imp-toggle");
+      if(tg) tg.addEventListener("click", function(){
+        const box = $("#imp-more");
+        box.classList.toggle("open");
+        tg.textContent = box.classList.contains("open") ? "收起 ▴" : "最近 " + hist.length + " 次 ▾";
+      });
+    }
+    function startPoll(){ stopPoll(); poll = setInterval(function(){ bridge.postMessage("progress"); }, 1500); }
+    function stopPoll(){ if(poll){ clearInterval(poll); poll = null; } }
+
+    window.__importHistory = function(list){
+      hist = (list || []).slice().reverse();
+      const last = hist[0];
+      if(!last) return;                            // 还没跑过 ⇒ 不占版面
+      if(last.kind === "start"){                   // 页面重载时脚本仍在跑 ⇒ 接着显示进度
+        running = true; liveMsg = "正在采集…";
+        imp.disabled = true; imp.textContent = "采集中…";
+        render(null, true); startPoll();
+      }else{
+        render(last, false);
+      }
+    };
+    window.__importProgress = function(p){ if(running){ liveMsg = (p && p.msg) || ""; render(null, true); } };
+    // 两个回调都挂好再取历史 —— 顺序反了会漏掉首个响应
+    bridge.postMessage("history");
+
+    imp.addEventListener("click", function(){
+      imp.disabled = true; imp.textContent = "采集中…";
+      running = true; liveMsg = "正在切到采集机……";
+      render(null, true); startPoll();
+      bridge.postMessage("import");
+    });
+    shr.addEventListener("click", function(){
+      shr.disabled = true; shr.textContent = "生成中…";
+      st.style.display = "block";
+      st.innerHTML = '<div class="imp-head"><span class="ic">⏳</span><span>正在渲染分享图…</span></div>' +
+                     '<div class="imp-body">标数-精简版，完成后自动在「预览」中打开</div>';
+      bridge.postMessage("share");
+    });
+    // 同步到线上：点一下把最新看板推到线上链接（链接不变，访客刷新即见最新）。
+    // 成功后 App 会把链接放进系统剪贴板 —— 回执里明说，省得他再去翻。
+    if(syn) syn.addEventListener("click", function(){
+      syn.disabled = true; syn.textContent = "同步中…";
+      st.style.display = "block";
+      st.innerHTML = '<div class="imp-head"><span class="ic">⏳</span><span>正在同步到线上…</span></div>' +
+                     '<div class="imp-body">上传站点页 → 回读校验（约几秒）</div>';
+      bridge.postMessage("sync");
+    });
+    window.__importDone = function(res){
+      running = false; stopPoll();
+      imp.disabled = false; imp.textContent = "导入最新读数";
+      if(res) hist.unshift(res);                 // 本次先顶到最前，刷新前的 1.8s 也能看到自己这次
+      render(res, false);
+      // 成功（含无新数据）一律刷新数据 —— 不看有没有增量，界面必须回到最新状态；
+      // 刷新后结果卡从历史恢复 ⇒ 信息不丢。失败/中断**不刷新**，把诊断信息留在屏上。
+      if(res && (res.kind === "ok" || res.kind === "noop")){
+        setTimeout(function(){ location.reload(); }, 1800);
+      }
+    };
+    window.__shareDone = function(res){
+      shr.disabled = false; shr.textContent = "生成分享图";
+      st.style.display = "block";
+      st.textContent = (res && res.ok)
+        ? "分享图已生成并在「预览」中打开 · 用时 " + res.elapsed + "s"
+        : "生成失败：" + ((res && res.err) || "未知错误");
+    };
+    window.__syncDone = function(res){
+      if(syn){ syn.disabled = false; syn.textContent = "同步到线上"; }
+      st.style.display = "block";
+      if(res && res.ok){
+        st.innerHTML =
+          '<div class="imp-head ok"><span class="ic">✅</span><span>已同步到线上</span>' +
+            (res.elapsed != null ? '<span class="t">' + esc(res.elapsed) + 's</span>' : '') + '</div>' +
+          '<div class="imp-body">' +
+            (res.rows != null ? esc(res.rows) + " 条" : "已上传") +
+            (res.latest ? " · 最新 " + esc(res.latest) : "") +
+            ' · <b>链接已复制到剪贴板</b>，直接粘给要分享的人</div>' +
+          '<div class="imp-body"><code>' + esc(res.url || "") + '</code></div>';
+      }else{
+        st.innerHTML =
+          '<div class="imp-head bad"><span class="ic">❌</span><span>同步失败</span></div>' +
+          '<div class="imp-body">' + esc((res && res.err) || "未知错误") + '</div>';
+      }
+    };
+  })();
+})();
+</script>
+</body>
+</html>
